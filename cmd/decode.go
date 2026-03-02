@@ -11,9 +11,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"time"
 
-	"github.com/adobe/imscli/cmd/pretty"
+	"github.com/adobe/imscli/cmd/prettify"
 	"github.com/adobe/imscli/ims"
 	"github.com/spf13/cobra"
 )
@@ -26,7 +29,6 @@ func decodeCmd(imsConfig *ims.Config) *cobra.Command {
 		Long:    "Decode a JWT token and display the header and payload as prettified JSON.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
 
 			decoded, err := imsConfig.DecodeToken()
 			if err != nil {
@@ -34,7 +36,13 @@ func decodeCmd(imsConfig *ims.Config) *cobra.Command {
 			}
 
 			output := fmt.Sprintf(`{"header":%s,"payload":%s}`, decoded.Header, decoded.Payload)
-			fmt.Println(pretty.JSON(output))
+			fmt.Println(prettify.JSON(output))
+
+			// When verbose, show human-readable token expiration on stderr
+			// so it doesn't pollute the JSON output on stdout.
+			if imsConfig.Verbose {
+				printTokenExpiration(decoded.Payload)
+			}
 
 			return nil
 		},
@@ -43,4 +51,29 @@ func decodeCmd(imsConfig *ims.Config) *cobra.Command {
 	cmd.Flags().StringVarP(&imsConfig.Token, "token", "t", "", "Token.")
 
 	return cmd
+}
+
+// printTokenExpiration parses the "exp" claim from a JWT payload and prints
+// a human-readable expiration message to stderr.
+func printTokenExpiration(payload string) {
+	var claims map[string]interface{}
+	if err := json.Unmarshal([]byte(payload), &claims); err != nil {
+		return
+	}
+
+	exp, ok := claims["exp"].(float64)
+	if !ok {
+		return
+	}
+
+	expTime := time.Unix(int64(exp), 0).UTC()
+	now := time.Now().UTC()
+
+	if now.After(expTime) {
+		fmt.Fprintf(os.Stderr, "\nToken expired: %s (%s ago)\n",
+			expTime.Format(time.RFC3339), now.Sub(expTime).Truncate(time.Second))
+	} else {
+		fmt.Fprintf(os.Stderr, "\nToken expires: %s (in %s)\n",
+			expTime.Format(time.RFC3339), expTime.Sub(now).Truncate(time.Second))
+	}
 }

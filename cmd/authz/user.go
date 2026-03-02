@@ -8,6 +8,7 @@
 // OF ANY KIND, either express or implied. See the License for the specific language
 // governing permissions and limitations under the License.
 
+// Package authz implements the authorize subcommands (user, pkce, service, jwt, client).
 package authz
 
 import (
@@ -26,7 +27,7 @@ func UserCmd(imsConfig *ims.Config) *cobra.Command {
 			"IMS token. Without PKCE only private clients are supported.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
+
 
 			resp, err := imsConfig.AuthorizeUser()
 			if err != nil {

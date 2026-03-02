@@ -30,6 +30,8 @@ func (i Config) validateGetAdminOrganizationsConfig() error {
 		return fmt.Errorf("missing service token parameter")
 	case i.URL == "":
 		return fmt.Errorf("missing IMS base URL parameter")
+	case !validateURL(i.URL):
+		return fmt.Errorf("invalid IMS base URL parameter")
 	case i.ClientID == "":
 		return fmt.Errorf("missing client ID parameter")
 	case i.Guid == "":
@@ -51,17 +53,9 @@ func (i Config) GetAdminOrganizations() (string, error) {
 		return "", fmt.Errorf("invalid parameters for admin organizations: %w", err)
 	}
 
-	httpClient, err := i.httpClient()
+	c, err := i.newIMSClient()
 	if err != nil {
-		return "", fmt.Errorf("error creating the HTTP Client: %w", err)
-	}
-
-	c, err := ims.NewClient(&ims.ClientConfig{
-		URL:    i.URL,
-		Client: httpClient,
-	})
-	if err != nil {
-		return "", fmt.Errorf("error creating the client: %w", err)
+		return "", fmt.Errorf("error creating the IMS client: %w", err)
 	}
 
 	organizations, err := c.GetAdminOrganizations(&ims.GetAdminOrganizationsRequest{

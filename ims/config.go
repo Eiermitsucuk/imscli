@@ -8,6 +8,10 @@
 // OF ANY KIND, either express or implied. See the License for the specific language
 // governing permissions and limitations under the License.
 
+// Package ims implements the core business logic for interacting with the
+// Adobe Identity Management System (IMS) API. It provides functions for
+// authorization flows, token management, profile retrieval, and client
+// registration.
 package ims
 
 import (
@@ -17,6 +21,8 @@ import (
 	"github.com/adobe/ims-go/ims"
 )
 
+// Config holds all parameters needed to interact with the IMS API.
+// Fields are populated from CLI flags, environment variables, or a config file.
 type Config struct {
 	URL                   string
 	ClientID              string
@@ -41,30 +47,49 @@ type Config struct {
 	Cascading             bool
 	Token                 string
 	Port                  int
-	PKCE                  bool
 	FullOutput            bool
+	Verbose               bool
 	Guid                  string
 	AuthSrc               string
 	DecodeFulfillableData bool
-	RegisterURL           string
 	ClientName            string
 	RedirectURIs []string
 }
 
-// Access token information
+// TokenInfo holds the response data from token-related IMS API calls.
 type TokenInfo struct {
 	AccessToken string
-	Expires     int //(response.ExpiresIn * time.Millisecond),
 	Valid       bool
 	Info        string
 }
 
+// RefreshInfo extends TokenInfo with the new refresh token returned by a token refresh.
 type RefreshInfo struct {
 	TokenInfo
 	RefreshToken string
 }
 
 func (i Config) resolveToken() (string, ims.TokenType, error) {
+	count := 0
+	if i.AccessToken != "" {
+		count++
+	}
+	if i.RefreshToken != "" {
+		count++
+	}
+	if i.DeviceToken != "" {
+		count++
+	}
+	if i.ServiceToken != "" {
+		count++
+	}
+	if i.AuthorizationCode != "" {
+		count++
+	}
+	if count > 1 {
+		return "", "", fmt.Errorf("multiple tokens provided, expected exactly one")
+	}
+
 	switch {
 	case i.AccessToken != "":
 		return i.AccessToken, ims.AccessToken, nil
@@ -79,6 +104,17 @@ func (i Config) resolveToken() (string, ims.TokenType, error) {
 	default:
 		return "", "", fmt.Errorf("no token provided")
 	}
+}
+
+func (i Config) newIMSClient() (*ims.Client, error) {
+	httpClient, err := i.httpClient()
+	if err != nil {
+		return nil, fmt.Errorf("error creating the HTTP client: %w", err)
+	}
+	return ims.NewClient(&ims.ClientConfig{
+		URL:    i.URL,
+		Client: httpClient,
+	})
 }
 
 func validateURL(u string) bool {

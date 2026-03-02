@@ -8,12 +8,13 @@
 // OF ANY KIND, either express or implied. See the License for the specific language
 // governing permissions and limitations under the License.
 
+// Package admin implements the admin subcommands (profile, organizations).
 package admin
 
 import (
 	"fmt"
 
-	"github.com/adobe/imscli/cmd/pretty"
+	"github.com/adobe/imscli/cmd/prettify"
 	"github.com/adobe/imscli/ims"
 	"github.com/spf13/cobra"
 )
@@ -25,18 +26,18 @@ func ProfileCmd(imsConfig *ims.Config) *cobra.Command {
 		Long:  "Requests the specified user profile using the admin API and a service token.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cmd.SilenceUsage = true
-			cmd.SilenceErrors = true
+
 
 			resp, err := imsConfig.GetAdminProfile()
 			if err != nil {
 				return fmt.Errorf("error in get admin profile cmd: %w", err)
 			}
-			fmt.Println(pretty.JSON(resp))
+			fmt.Println(prettify.JSON(resp))
 			return nil
 		},
 	}
 	cmd.Flags().StringVarP(&imsConfig.Guid, "guid", "g", "", "User ID.")
-	cmd.Flags().StringVarP(&imsConfig.AuthSrc, "authSrc", "s", "", "Authorization source.")
+	cmd.Flags().StringVarP(&imsConfig.AuthSrc, "authSrc", "A", "", "Authorization source.")
 	cmd.Flags().StringVarP(&imsConfig.ClientID, "clientID", "c", "", "IMS client ID.")
 	cmd.Flags().StringVarP(&imsConfig.ServiceToken, "serviceToken", "t", "", "Service token.")
 	cmd.Flags().StringVarP(&imsConfig.ProfileAPIVersion, "profileApiVersion", "a", "v1", "Admin profile API version.")

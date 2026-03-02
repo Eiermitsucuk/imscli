@@ -12,7 +12,6 @@ package ims
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/adobe/ims-go/ims"
 )
@@ -21,6 +20,8 @@ func (i Config) validateClusterExchangeConfig() error {
 	switch {
 	case i.URL == "":
 		return fmt.Errorf("missing IMS base URL parameter")
+	case !validateURL(i.URL):
+		return fmt.Errorf("invalid IMS base URL parameter")
 	case i.ClientID == "":
 		return fmt.Errorf("missing client ID parameter")
 	case i.ClientSecret == "":
@@ -43,17 +44,9 @@ func (i Config) ClusterExchange() (TokenInfo, error) {
 		return TokenInfo{}, fmt.Errorf("invalid parameters for cluster exchange: %w", err)
 	}
 
-	httpClient, err := i.httpClient()
+	c, err := i.newIMSClient()
 	if err != nil {
-		return TokenInfo{}, fmt.Errorf("error creating the HTTP Client: %w", err)
-	}
-
-	c, err := ims.NewClient(&ims.ClientConfig{
-		URL:    i.URL,
-		Client: httpClient,
-	})
-	if err != nil {
-		return TokenInfo{}, fmt.Errorf("create client: %w", err)
+		return TokenInfo{}, fmt.Errorf("error creating the IMS client: %w", err)
 	}
 
 	r, err := c.ClusterExchange(&ims.ClusterExchangeRequest{
@@ -70,6 +63,5 @@ func (i Config) ClusterExchange() (TokenInfo, error) {
 
 	return TokenInfo{
 		AccessToken: r.AccessToken,
-		Expires:     int(r.ExpiresIn * time.Millisecond),
 	}, nil
 }

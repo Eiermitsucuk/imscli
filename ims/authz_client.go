@@ -16,20 +16,33 @@ import (
 	"github.com/adobe/ims-go/ims"
 )
 
-// AuthorizeClientCredentials : Client Credentials OAuth flow
+func (i Config) validateAuthorizeClientCredentialsConfig() error {
+	switch {
+	case i.URL == "":
+		return fmt.Errorf("missing IMS base URL parameter")
+	case !validateURL(i.URL):
+		return fmt.Errorf("invalid IMS base URL parameter")
+	case i.ClientID == "":
+		return fmt.Errorf("missing client ID parameter")
+	case i.ClientSecret == "":
+		return fmt.Errorf("missing client secret parameter")
+	case len(i.Scopes) == 0 || i.Scopes[0] == "":
+		return fmt.Errorf("missing scopes parameter")
+	default:
+		return nil
+	}
+}
+
+// AuthorizeClientCredentials performs the Client Credentials OAuth flow.
 func (i Config) AuthorizeClientCredentials() (string, error) {
 
-	httpClient, err := i.httpClient()
-	if err != nil {
-		return "", fmt.Errorf("error creating the HTTP Client: %w", err)
+	if err := i.validateAuthorizeClientCredentialsConfig(); err != nil {
+		return "", fmt.Errorf("invalid parameters for client credentials authorization: %w", err)
 	}
 
-	c, err := ims.NewClient(&ims.ClientConfig{
-		URL:    i.URL,
-		Client: httpClient,
-	})
+	c, err := i.newIMSClient()
 	if err != nil {
-		return "", fmt.Errorf("create client: %w", err)
+		return "", fmt.Errorf("error creating the IMS client: %w", err)
 	}
 
 	r, err := c.Token(&ims.TokenRequest{
@@ -39,7 +52,7 @@ func (i Config) AuthorizeClientCredentials() (string, error) {
 		GrantType:    "client_credentials",
 	})
 	if err != nil {
-		return "", fmt.Errorf("request token: %w", err)
+		return "", fmt.Errorf("error requesting token: %w", err)
 	}
 
 	return r.AccessToken, nil

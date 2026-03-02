@@ -35,6 +35,8 @@ func (i Config) validateGetProfileConfig() error {
 		return fmt.Errorf("missing access token parameter")
 	case i.URL == "":
 		return fmt.Errorf("missing IMS base URL parameter")
+	case !validateURL(i.URL):
+		return fmt.Errorf("invalid IMS base URL parameter")
 	default:
 		log.Println("all needed parameters verified not empty")
 	}
@@ -49,17 +51,9 @@ func (i Config) GetProfile() (string, error) {
 		return "", fmt.Errorf("invalid parameters for profile: %w", err)
 	}
 
-	httpClient, err := i.httpClient()
+	c, err := i.newIMSClient()
 	if err != nil {
-		return "", fmt.Errorf("error creating the HTTP Client: %w", err)
-	}
-
-	c, err := ims.NewClient(&ims.ClientConfig{
-		URL:    i.URL,
-		Client: httpClient,
-	})
-	if err != nil {
-		return "", fmt.Errorf("error creating the client: %w", err)
+		return "", fmt.Errorf("error creating the IMS client: %w", err)
 	}
 
 	profile, err := c.GetProfile(&ims.GetProfileRequest{
@@ -99,16 +93,22 @@ func decodeProfile(profile []byte) (string, error) {
 	return string(modifiedJson), nil
 }
 
+// fulfillableServiceCodes lists the service codes whose fulfillable_data field
+// contains a base64+gzip-encoded payload that can be decoded.
+var fulfillableServiceCodes = map[string]bool{
+	"dma_media_library":  true,
+	"dma_aem_cloud":      true,
+	"dma_aem_contenthub": true,
+	"dx_genstudio":       true,
+}
+
 func findFulfillableData(data interface{}) {
 	switch data := data.(type) {
 	case map[string]interface{}:
 		for key, value := range data {
 			if key == "fulfillable_data" {
 				serviceCode, ok := data["serviceCode"].(string)
-				if ok && (serviceCode == "dma_media_library" ||
-					serviceCode == "dma_aem_cloud" ||
-					serviceCode == "dma_aem_contenthub" ||
-					serviceCode == "dx_genstudio") {
+				if ok && fulfillableServiceCodes[serviceCode] {
 
 					strValue, ok := value.(string)
 					if !ok {

@@ -8,13 +8,15 @@
 // OF ANY KIND, either express or implied. See the License for the specific language
 // governing permissions and limitations under the License.
 
-package pretty
+package prettify
 
 import (
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func loadExpected(t *testing.T, filename string) string {
@@ -40,6 +42,9 @@ func TestJSON(t *testing.T) {
 		{name: "nested objects", input: `{"a":{"b":{"c":1}}}`, file: "nested_objects.json"},
 		{name: "non-JSON is returned as-is", input: "this is not JSON", file: "non_json.txt"},
 		{name: "empty string is returned as-is", input: "", file: "empty_string.txt"},
+		{name: "unicode characters", input: `{"greeting":"こんにちは","emoji":"🎉","accented":"café"}`, file: "unicode.json"},
+		{name: "special characters", input: `{"html":"\u003cscript\u003ealert('xss')\u003c/script\u003e","newlines":"line1\nline2","tabs":"col1\tcol2","quotes":"she said \"hello\""}`, file: "special_chars.json"},
+		{name: "null and bool values", input: `{"value":null,"enabled":true,"disabled":false}`, file: "null_and_bool.json"},
 	}
 
 	for _, tt := range tests {
@@ -51,4 +56,57 @@ func TestJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+// randomString generates a string of the given length with arbitrary bytes,
+// including invalid UTF-8, control characters, and JSON-significant characters.
+// Used by the fuzz tests below to verify that JSON never panics.
+func randomString(rng *rand.Rand, length int) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = byte(rng.Intn(256))
+	}
+	return string(b)
+}
+
+// TestFuzzJSON generates random inputs for 10 seconds to verify that JSON
+// never panics regardless of input. Runs in parallel with other tests.
+//
+// For deeper exploration, use Go's built-in fuzz engine:
+//
+//	go test -fuzz=FuzzJSON -fuzztime=60s ./cmd/prettify/
+func TestFuzzJSON(t *testing.T) {
+	t.Parallel()
+
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	deadline := time.After(10 * time.Second)
+	iterations := 0
+
+	for {
+		select {
+		case <-deadline:
+			t.Logf("fuzz: %d iterations without panic", iterations)
+			return
+		default:
+			input := randomString(rng, rng.Intn(1024))
+			_ = JSON(input)
+			iterations++
+		}
+	}
+}
+
+// FuzzJSON is a standard Go fuzz target for deeper exploration.
+// Run manually: go test -fuzz=FuzzJSON -fuzztime=60s ./cmd/prettify/
+func FuzzJSON(f *testing.F) {
+	f.Add(`{}`)
+	f.Add(`[]`)
+	f.Add(`{"a":1}`)
+	f.Add(`"plain string"`)
+	f.Add(`null`)
+	f.Add(`not json`)
+	f.Add(``)
+
+	f.Fuzz(func(t *testing.T, input string) {
+		_ = JSON(input)
+	})
 }
